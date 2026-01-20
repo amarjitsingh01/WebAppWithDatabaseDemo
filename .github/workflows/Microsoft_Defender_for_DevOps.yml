@@ -1,37 +1,53 @@
-name: Microsoft Defender for DevOps
+name: Deploy ASP.NET Core App to Azure App Service - WebAppWithDatabaseDemo
+
 on:
   push:
     branches:
-      - dev
+      - main
+      - master
   workflow_dispatch:
 
 jobs:
-  sample:
-    name: Microsoft Security DevOps Analysis
-
-    # MSDO runs on windows-latest.
-    # ubuntu-latest and macos-latest supporting coming soon
-    runs-on: windows-latest
+  build:
+    runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      # Checkout your code repository to scan
-    - uses: actions/checkout@v3
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
-      # Run analyzers
-    - name: Run Microsoft Security DevOps Analysis
-      uses: microsoft/security-devops-action@preview
-      id: msdo
+      - name: Restore
+        run: dotnet restore WebAppWithDatabaseDemo.csproj
 
-      # Upload alerts to the Security tab
-    - name: Upload alerts to Security tab
-      uses: github/codeql-action/upload-sarif@v2
-      with:
-        sarif_file: ${{ steps.msdo.outputs.sarifFile }}
+      - name: Build
+        run: dotnet build WebAppWithDatabaseDemo.csproj -c Release --no-restore
 
-      # Upload alerts file as a workflow artifact
-    - name: Upload alerts file as a workflow artifact
-      uses: actions/upload-artifact@v3
-      with:  
-        name: alerts
-        path: ${{ steps.msdo.outputs.sarifFile }}
+      - name: Publish
+        run: dotnet publish WebAppWithDatabaseDemo.csproj -c Release -o publish --no-build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app
+          path: publish
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: WebAppWithDatabaseDemo
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .
