@@ -1,4 +1,4 @@
-name: Deploy ASP.NET Core App to Azure App Service - WebAppWithDatabaseDemo
+name: Deploy ASP.NET Core WebAppWithDatabaseDemo to Azure App Service
 
 on:
   push:
@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup .NET
@@ -20,14 +20,14 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Restore
-        run: dotnet restore WebAppWithDatabaseDemo.csproj
+      - name: Restore dependencies
+        run: dotnet restore WebApp/WebApp.csproj
 
       - name: Build
-        run: dotnet build WebAppWithDatabaseDemo.csproj -c Release --no-restore
+        run: dotnet build WebApp/WebApp.csproj -c Release --no-restore
 
       - name: Publish
-        run: dotnet publish WebAppWithDatabaseDemo.csproj -c Release -o publish --no-build
+        run: dotnet publish WebApp/WebApp.csproj -c Release -o publish --no-build
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
