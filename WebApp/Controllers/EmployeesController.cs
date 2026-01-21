@@ -7,6 +7,9 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using WebApp.Models;
 using WebApp.Data;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
 
 namespace WebApp.Controllers
 {
@@ -60,6 +63,40 @@ namespace WebApp.Controllers
             {
                 _context.Add(employee);
                 await _context.SaveChangesAsync();
+
+                try
+        {
+            using (var client = new HttpClient())
+            {
+                var logicAppUrl =
+                    "https://prod-08.centralindia.logic.azure.com:443/workflows/e4b620404f2e45f3a283380f3793b481/triggers/When_an_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2FWhen_an_HTTP_request_is_received%2Frun&sv=1.0&sig=b5cx-Va6jtlYGDHi_nVj7ZyHbgo51-ZFNtk_uKUsnzg";
+
+                var payload = new
+                {
+                    FullName = employee.Fullname,
+                    Email = employee.Email,
+                    Department = employee.Department,
+                    Phone = employee.Phone,
+                    Address = employee.Address
+                };
+
+                var json = JsonSerializer.Serialize(payload);
+
+                var content = new StringContent(
+                    json,
+                    Encoding.UTF8,
+                    "application/json"
+                );
+
+                await client.PostAsync(logicAppUrl, content);
+            }
+        }
+        catch
+        {
+            // Do nothing – email failure should NOT block DB save
+        }
+
+                
                 return RedirectToAction(nameof(Index));
             }
             return View(employee);
