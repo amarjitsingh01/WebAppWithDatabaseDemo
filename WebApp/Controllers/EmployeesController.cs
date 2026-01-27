@@ -10,16 +10,19 @@ using WebApp.Data;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using Azure.Storage.Blobs;
 
 namespace WebApp.Controllers
 {
     public class EmployeesController : Controller
     {
         private readonly WebAppContext _context;
+        private readonly BlobContainerClient _blobContainerClient;
 
-        public EmployeesController(WebAppContext context)
+        public EmployeesController(WebAppContext context, BlobContainerClient blobContainerClient)
         {
             _context = context;
+            _blobContainerClient = blobContainerClient;
         }
 
         // GET: Employees
@@ -180,6 +183,32 @@ namespace WebApp.Controllers
             _context.Employee.Remove(employee);
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
+        }
+
+        // -------------------------
+        // NEW: Upload Employee Image
+        // -------------------------
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UploadImage(int id, IFormFile file)
+        {
+            var employee = await _context.Employee.FindAsync(id);
+            if (employee == null) return NotFound("Employee not found.");
+            if (file == null || file.Length == 0) return BadRequest("No file uploaded.");
+
+            // Generate unique blob name
+            var blobName = $"{id}_{Guid.NewGuid()}_{file.FileName}";
+            var blobClient = _blobContainerClient.GetBlobClient(blobName);
+
+            // Upload to Azure Blob Storage
+            await blobClient.UploadAsync(file.OpenReadStream(), overwrite: true);
+
+            // Save blob URL in Employee table
+            employee.ImageUrl = blobClient.Uri.ToString();
+            _context.Update(employee);
+            await _context.SaveChangesAsync();
+
+            return RedirectToAction(nameof(Details), new { id });
         }
 
         private bool EmployeeExists(int id)
