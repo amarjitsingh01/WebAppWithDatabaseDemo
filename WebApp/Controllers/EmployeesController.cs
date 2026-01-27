@@ -60,12 +60,26 @@ namespace WebApp.Controllers
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,Fullname,Department,Email,Phone,Address")] Employee employee)
+        public async Task<IActionResult> Create([Bind("Id,Fullname,Department,Email,Phone,Address")] Employee employee,IFormFile file)
         {
             if (ModelState.IsValid)
             {
                 _context.Add(employee);
                 await _context.SaveChangesAsync();
+                // 2️⃣ Upload image (if provided)
+            if (file != null && file.Length > 0)
+            {
+                var blobName = $"{employee.Id}_{Guid.NewGuid()}_{file.FileName}";
+                var blobClient = _blobContainerClient.GetBlobClient(blobName);
+
+                await blobClient.UploadAsync(file.OpenReadStream(), overwrite: true);
+
+                employee.ImageUrl = blobClient.Uri.ToString();
+                _context.Update(employee);
+                await _context.SaveChangesAsync();
+            }
+
+            // 3️⃣ Call Logic App (unchanged)
 
                 try
         {
