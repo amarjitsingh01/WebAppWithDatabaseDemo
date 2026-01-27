@@ -51,7 +51,7 @@ namespace WebApp.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(
-            [Bind("Id,Fullname,Department,Email,Phone,Address")] Employee employee,
+            [Bind("Fullname,Department,Email,Phone,Address")] Employee employee,
             IFormFile file)
         {
             if (!ModelState.IsValid)
@@ -61,7 +61,7 @@ namespace WebApp.Controllers
             _context.Add(employee);
             await _context.SaveChangesAsync();
 
-            // Upload image (if provided)
+            // Upload image if provided
             if (file != null && file.Length > 0)
             {
                 var blobName = $"{employee.Id}_{Guid.NewGuid()}_{file.FileName}";
@@ -78,7 +78,6 @@ namespace WebApp.Controllers
             try
             {
                 using var client = new HttpClient();
-
                 var logicAppUrl =
                     "https://prod-08.centralindia.logic.azure.com:443/workflows/e4b620404f2e45f3a283380f3793b481/triggers/When_an_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2FWhen_an_HTTP_request_is_received%2Frun&sv=1.0&sig=b5cx-Va6jtlYGDHi_nVj7ZyHbgo51-ZFNtk_uKUsnzg";
 
@@ -93,7 +92,6 @@ namespace WebApp.Controllers
 
                 var json = JsonSerializer.Serialize(payload);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
-
                 await client.PostAsync(logicAppUrl, content);
             }
             catch
@@ -120,27 +118,32 @@ namespace WebApp.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(
             int id,
-            [Bind("Id,Fullname,Department,Email,Phone,Address,ImageUrl")] Employee employee,
+            [Bind("Fullname,Department,Email,Phone,Address")] Employee employee,
             IFormFile file)
         {
-            if (id != employee.Id) return NotFound();
+            var empToUpdate = await _context.Employee.FindAsync(id);
+            if (empToUpdate == null) return NotFound();
 
             if (!ModelState.IsValid)
-                return View(employee);
+                return View(empToUpdate);
 
-            // Upload new image if provided
+            // Update fields
+            empToUpdate.Fullname = employee.Fullname;
+            empToUpdate.Department = employee.Department;
+            empToUpdate.Email = employee.Email;
+            empToUpdate.Phone = employee.Phone;
+            empToUpdate.Address = employee.Address;
+
+            // Update image if provided
             if (file != null && file.Length > 0)
             {
-                var blobName = $"{employee.Id}_{Guid.NewGuid()}_{file.FileName}";
+                var blobName = $"{empToUpdate.Id}_{Guid.NewGuid()}_{file.FileName}";
                 var blobClient = _blobContainerClient.GetBlobClient(blobName);
-
                 await blobClient.UploadAsync(file.OpenReadStream(), overwrite: true);
-                employee.ImageUrl = blobClient.Uri.ToString();
+                empToUpdate.ImageUrl = blobClient.Uri.ToString();
             }
 
-            _context.Update(employee);
             await _context.SaveChangesAsync();
-
             return RedirectToAction(nameof(Index));
         }
 
