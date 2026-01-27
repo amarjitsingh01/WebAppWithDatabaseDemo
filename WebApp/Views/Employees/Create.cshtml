@@ -38,12 +38,8 @@
                 <span asp-validation-for="Address" class="text-danger"></span>
             </div>
             <div class="form-group">
-                <label>Upload New Image</label>
-                <form asp-action="UploadImage" method="post" enctype="multipart/form-data">
-                    <input type="hidden" name="id" value="@Model.Id" />
-                    <input type="file" name="file" accept="image/*" class="form-control mb-2" />
-                    <button type="submit" class="btn btn-primary">Upload Image</button>
-                </form>
+                <label>Employee Image</label>
+                <input type="file" name="file" accept="image/*" class="form-control" />
             </div>
             <div class="form-group">
                 <input id="SubmitButton" type="submit" value="Create" class="btn btn-primary" />
