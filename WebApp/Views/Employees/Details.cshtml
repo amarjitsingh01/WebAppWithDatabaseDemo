@@ -55,6 +55,16 @@
         </dd>
     </dl>
 </div>
+<hr />
+
+<h4>Upload / Change Image</h4>
+<form asp-action="UploadImage" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="id" value="@Model.Id" />
+    <input type="file" name="file" accept="image/*" required />
+    <button type="submit" class="btn btn-primary">Upload Image</button>
+</form>
+
+<hr />
 <div>
     <a asp-action="Edit" asp-route-id="@Model.Id">Edit</a> |
     <a asp-action="Index">Back to List</a>
