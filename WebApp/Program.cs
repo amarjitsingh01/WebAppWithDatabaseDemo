@@ -9,6 +9,20 @@ builder.Services.AddDbContext<WebAppContext>(options =>
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 
+// Read connection string and container name from environment variables
+var blobConnectionString = builder.Configuration["AzureBlob:ConnectionString"];
+var blobContainerName = builder.Configuration["AzureBlob:ContainerName"];
+
+// Create BlobServiceClient and BlobContainerClient
+var blobServiceClient = new BlobServiceClient(blobConnectionString);
+var blobContainerClient = blobServiceClient.GetBlobContainerClient(blobContainerName);
+
+// Make sure container exists
+await blobContainerClient.CreateIfNotExistsAsync();
+
+// Register BlobContainerClient in DI
+builder.Services.AddSingleton(blobContainerClient);
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
