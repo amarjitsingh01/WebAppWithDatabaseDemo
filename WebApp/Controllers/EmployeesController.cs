@@ -1,9 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using WebApp.Models;
 using WebApp.Data;
@@ -11,6 +9,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using Azure.Storage.Blobs;
+using Microsoft.AspNetCore.Http;
 
 namespace WebApp.Controllers
 {
@@ -34,17 +33,10 @@ namespace WebApp.Controllers
         // GET: Employees/Details/5
         public async Task<IActionResult> Details(int? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
-            var employee = await _context.Employee
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (employee == null)
-            {
-                return NotFound();
-            }
+            var employee = await _context.Employee.FirstOrDefaultAsync(m => m.Id == id);
+            if (employee == null) return NotFound();
 
             return View(employee);
         }
@@ -56,17 +48,20 @@ namespace WebApp.Controllers
         }
 
         // POST: Employees/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,Fullname,Department,Email,Phone,Address")] Employee employee,IFormFile file)
+        public async Task<IActionResult> Create(
+            [Bind("Id,Fullname,Department,Email,Phone,Address")] Employee employee,
+            IFormFile file)
         {
-            if (ModelState.IsValid)
-            {
-                _context.Add(employee);
-                await _context.SaveChangesAsync();
-                // 2️⃣ Upload image (if provided)
+            if (!ModelState.IsValid)
+                return View(employee);
+
+            // Save employee first
+            _context.Add(employee);
+            await _context.SaveChangesAsync();
+
+            // Upload image (if provided)
             if (file != null && file.Length > 0)
             {
                 var blobName = $"{employee.Id}_{Guid.NewGuid()}_{file.FileName}";
@@ -79,12 +74,11 @@ namespace WebApp.Controllers
                 await _context.SaveChangesAsync();
             }
 
-            // 3️⃣ Call Logic App (unchanged)
-
-                try
-        {
-            using (var client = new HttpClient())
+            // Call Logic App
+            try
             {
+                using var client = new HttpClient();
+
                 var logicAppUrl =
                     "https://prod-08.centralindia.logic.azure.com:443/workflows/e4b620404f2e45f3a283380f3793b481/triggers/When_an_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2FWhen_an_HTTP_request_is_received%2Frun&sv=1.0&sig=b5cx-Va6jtlYGDHi_nVj7ZyHbgo51-ZFNtk_uKUsnzg";
 
@@ -98,92 +92,65 @@ namespace WebApp.Controllers
                 };
 
                 var json = JsonSerializer.Serialize(payload);
-
-                var content = new StringContent(
-                    json,
-                    Encoding.UTF8,
-                    "application/json"
-                );
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 await client.PostAsync(logicAppUrl, content);
             }
-        }
-        catch
-        {
-            // Do nothing – email failure should NOT block DB save
-        }
-
-                
-                return RedirectToAction(nameof(Index));
+            catch
+            {
+                // Do not block save
             }
-            return View(employee);
+
+            return RedirectToAction(nameof(Index));
         }
 
         // GET: Employees/Edit/5
         public async Task<IActionResult> Edit(int? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             var employee = await _context.Employee.FindAsync(id);
-            if (employee == null)
-            {
-                return NotFound();
-            }
+            if (employee == null) return NotFound();
+
             return View(employee);
         }
 
         // POST: Employees/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,Fullname,Department,Email,Phone,Address")] Employee employee)
+        public async Task<IActionResult> Edit(
+            int id,
+            [Bind("Id,Fullname,Department,Email,Phone,Address,ImageUrl")] Employee employee,
+            IFormFile file)
         {
-            if (id != employee.Id)
+            if (id != employee.Id) return NotFound();
+
+            if (!ModelState.IsValid)
+                return View(employee);
+
+            // Upload new image if provided
+            if (file != null && file.Length > 0)
             {
-                return NotFound();
+                var blobName = $"{employee.Id}_{Guid.NewGuid()}_{file.FileName}";
+                var blobClient = _blobContainerClient.GetBlobClient(blobName);
+
+                await blobClient.UploadAsync(file.OpenReadStream(), overwrite: true);
+                employee.ImageUrl = blobClient.Uri.ToString();
             }
 
-            if (ModelState.IsValid)
-            {
-                try
-                {
-                    _context.Update(employee);
-                    await _context.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!EmployeeExists(employee.Id))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
-                return RedirectToAction(nameof(Index));
-            }
-            return View(employee);
+            _context.Update(employee);
+            await _context.SaveChangesAsync();
+
+            return RedirectToAction(nameof(Index));
         }
 
         // GET: Employees/Delete/5
         public async Task<IActionResult> Delete(int? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
-            var employee = await _context.Employee
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (employee == null)
-            {
-                return NotFound();
-            }
+            var employee = await _context.Employee.FirstOrDefaultAsync(m => m.Id == id);
+            if (employee == null) return NotFound();
 
             return View(employee);
         }
@@ -194,35 +161,13 @@ namespace WebApp.Controllers
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             var employee = await _context.Employee.FindAsync(id);
-            _context.Employee.Remove(employee);
-            await _context.SaveChangesAsync();
+            if (employee != null)
+            {
+                _context.Employee.Remove(employee);
+                await _context.SaveChangesAsync();
+            }
+
             return RedirectToAction(nameof(Index));
-        }
-
-        // -------------------------
-        // NEW: Upload Employee Image
-        // -------------------------
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UploadImage(int id, IFormFile file)
-        {
-            var employee = await _context.Employee.FindAsync(id);
-            if (employee == null) return NotFound("Employee not found.");
-            if (file == null || file.Length == 0) return BadRequest("No file uploaded.");
-
-            // Generate unique blob name
-            var blobName = $"{id}_{Guid.NewGuid()}_{file.FileName}";
-            var blobClient = _blobContainerClient.GetBlobClient(blobName);
-
-            // Upload to Azure Blob Storage
-            await blobClient.UploadAsync(file.OpenReadStream(), overwrite: true);
-
-            // Save blob URL in Employee table
-            employee.ImageUrl = blobClient.Uri.ToString();
-            _context.Update(employee);
-            await _context.SaveChangesAsync();
-
-            return RedirectToAction(nameof(Details), new { id });
         }
 
         private bool EmployeeExists(int id)
