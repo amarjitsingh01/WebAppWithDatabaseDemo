@@ -1,7 +1,7 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/azure/functions-action
-# More GitHub Actions for Azure: https://github.com/Azure/actions
+# Docs: https://github.com/Azure/functions-action
+# This workflow builds and deploys the EmployeeNotificationFunc Azure Function to Azure
 
-name: Build and deploy dotnet core app to Azure Function App - azlearning-func-orders
+name: Build and Deploy Azure Function - EmployeeNotificationFunc
 
 on:
   push:
@@ -10,35 +10,45 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.' # set this to the path to your web app project, defaults to the repository root
-  DOTNET_VERSION: '10.0.x' # set this to the dotnet version to use
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: 'EmployeeNotificationFunc' # path to your Function project
+  DOTNET_VERSION: '10.0.x' # change to your Function target version if needed
 
 jobs:
   build-and-deploy:
     runs-on: windows-latest
-    
+
     steps:
-      - name: 'Checkout GitHub Action'
+      # 1️⃣ Checkout the repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup DotNet ${{ env.DOTNET_VERSION }} Environment
-        uses: actions/setup-dotnet@v1
+      # 2️⃣ Setup .NET
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: 'Publish Azure Function App'
+      # 3️⃣ Restore dependencies (optional, good practice)
+      - name: Restore dependencies
         shell: pwsh
         run: |
           pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
-          dotnet build --configuration Release --output ./output
+          dotnet restore
           popd
-      
-      - name: 'Run Azure Functions Action'
+
+      # 4️⃣ Publish the Function App
+      - name: Publish Azure Function
+        shell: pwsh
+        run: |
+          pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
+          dotnet publish EmployeeNotificationFunc.csproj --configuration Release --output ./output
+          popd
+
+      # 5️⃣ Deploy to Azure Function
+      - name: Deploy to Azure Function App
         uses: Azure/functions-action@v1
-        id: fa
         with:
-          app-name: 'azlearning-func-orders'
+          app-name: 'azlearning-func-orders' # Your Azure Function App name
           slot-name: 'Production'
           package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
-
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
