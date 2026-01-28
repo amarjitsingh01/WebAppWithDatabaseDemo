@@ -10,6 +10,7 @@ using System.Text;
 using System.Text.Json;
 using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 
 namespace WebApp.Controllers
 {
@@ -17,11 +18,13 @@ namespace WebApp.Controllers
     {
         private readonly WebAppContext _context;
         private readonly BlobContainerClient _blobContainerClient;
+        private readonly IConfiguration _configuration;
 
-        public EmployeesController(WebAppContext context, BlobContainerClient blobContainerClient)
+        public EmployeesController(WebAppContext context, BlobContainerClient blobContainerClient, IConfiguration configuration)
         {
             _context = context;
             _blobContainerClient = blobContainerClient;
+            _configuration = configuration;
         }
 
         // GET: Employees
@@ -77,9 +80,11 @@ namespace WebApp.Controllers
             // Call Logic App
             try
             {
+
+                var logicAppUrl = _configuration["LogicApp:EmployeeCreatedUrl"];
+            if (!string.IsNullOrEmpty(logicAppUrl))
+            {
                 using var client = new HttpClient();
-                var logicAppUrl =
-                    "https://prod-08.centralindia.logic.azure.com:443/workflows/e4b620404f2e45f3a283380f3793b481/triggers/When_an_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2FWhen_an_HTTP_request_is_received%2Frun&sv=1.0&sig=b5cx-Va6jtlYGDHi_nVj7ZyHbgo51-ZFNtk_uKUsnzg";
 
                 var payload = new
                 {
@@ -94,6 +99,7 @@ namespace WebApp.Controllers
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
                 await client.PostAsync(logicAppUrl, content);
             }
+        }
             catch
             {
                 // Do not block save
