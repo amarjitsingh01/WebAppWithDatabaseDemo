@@ -77,32 +77,60 @@ namespace WebApp.Controllers
                 await _context.SaveChangesAsync();
             }
 
-            // Call Logic App
+            // Call Logic App (commented out)
+            /*
             try
             {
-
                 var logicAppUrl = _configuration["LogicApp:EmployeeCreatedUrl"];
-            if (!string.IsNullOrEmpty(logicAppUrl))
-            {
-                using var client = new HttpClient();
-
-                var payload = new
+                if (!string.IsNullOrEmpty(logicAppUrl))
                 {
-                    FullName = employee.Fullname,
-                    Email = employee.Email,
-                    Department = employee.Department,
-                    Phone = employee.Phone,
-                    Address = employee.Address
-                };
+                    using var client = new HttpClient();
 
-                var json = JsonSerializer.Serialize(payload);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-                await client.PostAsync(logicAppUrl, content);
+                    var payload = new
+                    {
+                        FullName = employee.Fullname,
+                        Email = employee.Email,
+                        Department = employee.Department,
+                        Phone = employee.Phone,
+                        Address = employee.Address
+                    };
+
+                    var json = JsonSerializer.Serialize(payload);
+                    var content = new StringContent(json, Encoding.UTF8, "application/json");
+                    await client.PostAsync(logicAppUrl, content);
+                }
             }
-        }
             catch
             {
                 // Do not block save
+            }
+            */
+
+            // Call Azure Function instead
+            try
+            {
+                var functionUrl = _configuration["FUNCTION_NOTIFY_EMPLOYEES_URL"];
+                if (!string.IsNullOrEmpty(functionUrl))
+                {
+                    using var client = new HttpClient();
+
+                    var payload = new
+                    {
+                        FullName = employee.Fullname,
+                        Email = employee.Email,
+                        Department = employee.Department,
+                        Phone = employee.Phone,
+                        Address = employee.Address
+                    };
+
+                    var json = JsonSerializer.Serialize(payload);
+                    var content = new StringContent(json, Encoding.UTF8, "application/json");
+                    await client.PostAsync(functionUrl, content);
+                }
+            }
+            catch
+            {
+                // Do not block save if Azure Function call fails
             }
 
             return RedirectToAction(nameof(Index));
