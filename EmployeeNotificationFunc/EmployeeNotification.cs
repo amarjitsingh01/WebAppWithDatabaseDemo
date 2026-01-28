@@ -4,8 +4,10 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.IO;
 
 namespace AzLearning.Func.Emp.Functions
 {
@@ -24,30 +26,48 @@ namespace AzLearning.Func.Emp.Functions
 
         [Function("NotifyEmployees")]
         public async Task<HttpResponseData> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post")] HttpRequestData req)
+            [HttpTrigger(AuthorizationLevel.Function, "post", "get")] HttpRequestData req)
         {
             _logger.LogInformation("Function triggered to call Logic App.");
 
-            var logicAppUrl = _configuration["LogicApp:EmployeeCreatedUrl"];
+            // Get Logic App URL and Key from App Settings
+            var logicAppUrl = _configuration["NotifyEmployeesUrl"];
+            var logicAppKey = _configuration["NotifyEmployeesKey"]; // optional if included in URL
+
             if (string.IsNullOrEmpty(logicAppUrl))
             {
                 var badResponse = req.CreateResponse(HttpStatusCode.BadRequest);
-                await badResponse.WriteStringAsync("LogicApp URL not configured.");
+                await badResponse.WriteStringAsync("Logic App URL not configured.");
                 return badResponse;
             }
 
             try
             {
-                // Prepare payload (customize as needed)
-                var payload = new { Message = "Triggered from Azure Function" };
-                var json = JsonSerializer.Serialize(payload);
+                // Read request body from WebApp
+                string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+                if (string.IsNullOrEmpty(requestBody))
+                {
+                    var badResponse = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badResponse.WriteStringAsync("Request body is empty.");
+                    return badResponse;
+                }
 
-                var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+                // Forward the payload to Logic App
+                var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
+
+                // If you need the function key, you can append it as query param
+                if (!string.IsNullOrEmpty(logicAppKey))
+                {
+                    logicAppUrl += $"?code={logicAppKey}";
+                }
+
                 var responseFromLogicApp = await _httpClient.PostAsync(logicAppUrl, content);
 
-                var response = req.CreateResponse(responseFromLogicApp.IsSuccessStatusCode ? HttpStatusCode.OK : HttpStatusCode.BadRequest);
-                await response.WriteStringAsync($"Logic App triggered. Status code: {responseFromLogicApp.StatusCode}");
+                var response = req.CreateResponse(
+                    responseFromLogicApp.IsSuccessStatusCode ? HttpStatusCode.OK : HttpStatusCode.BadRequest
+                );
 
+                await response.WriteStringAsync($"Logic App triggered. Status code: {responseFromLogicApp.StatusCode}");
                 return response;
             }
             catch (System.Exception ex)
