@@ -106,14 +106,16 @@ namespace WebApp.Controllers
             }
             */
 
-            // Call Azure Function instead
+            // --- Call Azure Function using values from web app settings ---
             try
             {
-                var functionUrl = _configuration["FUNCTION_NOTIFY_EMPLOYEES_URL"];
-                if (!string.IsNullOrEmpty(functionUrl))
+                // Read from Azure App Service configuration
+                var functionUrl = _configuration["NotifyEmployeesUrl"];
+                var functionKey = _configuration["NotifyEmployeesKey"];
+
+                if (!string.IsNullOrEmpty(functionUrl) && !string.IsNullOrEmpty(functionKey))
                 {
                     using var client = new HttpClient();
-
                     var payload = new
                     {
                         FullName = employee.Fullname,
@@ -122,15 +124,17 @@ namespace WebApp.Controllers
                         Phone = employee.Phone,
                         Address = employee.Address
                     };
-
                     var json = JsonSerializer.Serialize(payload);
                     var content = new StringContent(json, Encoding.UTF8, "application/json");
-                    await client.PostAsync(functionUrl, content);
+
+                    // Append function key as query string
+                    var requestUri = $"{functionUrl}?code={functionKey}";
+                    await client.PostAsync(requestUri, content);
                 }
             }
             catch
             {
-                // Do not block save if Azure Function call fails
+                // Do not block save
             }
 
             return RedirectToAction(nameof(Index));
